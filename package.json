@@ -1,0 +1,27 @@
+{
+  "name": "steam-profile-explorer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API NestJS e interface para perfis, capturas e conquistas Steam",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "start:dev": "node --watch -r ts-node/register src/main.ts",
+    "test": "npm run build && node --test test/*.test.cjs"
+  },
+  "engines": { "node": ">=22" },
+  "overrides": { "multer": "^2.5.0", "js-yaml": "^5.5.0" },
+  "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/swagger": "^11.0.0",
+    "@nestjs/throttler": "^6.4.0",
+    "cheerio": "^1.1.0",
+    "dotenv": "^17.0.0",
+    "helmet": "^8.0.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": { "@types/node": "^24.0.0", "typescript": "^5.9.0", "ts-node": "^10.9.2" }
+}

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101519">
+  <title>Steam Atlas • Explore um perfil</title>
+  <link rel="stylesheet" href="/styles.css"><script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/" aria-label="Steam Atlas, início"><span class="brandmark">◈</span> STEAM<span>ATLAS</span></a><span class="topnote">UM OLHAR SOBRE CADA JOGADOR</span><a href="/api/docs" target="_blank" rel="noopener">Explorar API ↗</a></header>
+  <main>
+    <section class="hero">
+      <div class="eyebrow"><span class="dot"></span> PERFIS · CAPTURAS · CONQUISTAS</div>
+      <h1>Cada perfil,<br>uma história para <em>explorar.</em></h1>
+      <p>Os três últimos jogos, suas conquistas e capturas de tela.<br>Tudo organizado por jogo, em uma única consulta.</p>
+      <form id="search-form" class="searchbox"><label class="sr-only" for="profile-input">Link do perfil, SteamID64 ou identificador personalizado</label><span aria-hidden="true">⌕</span><input id="profile-input" type="text" maxlength="250" placeholder="Cole o link do perfil ou digite um SteamID64" required autocomplete="off"><button id="search-button" type="submit">Explorar perfil <span aria-hidden="true">→</span></button></form>
+      <div class="searchhint">Aceita steamcommunity.com/id/nome, SteamID64 ou identificador <button id="example" type="button">Experimentar com GhostTl ↗</button></div>
+    </section>
+    <div id="config-notice" class="notice" hidden>Exibindo o resumo público das conquistas. Para carregar a lista completa e as datas de desbloqueio, configure <code>STEAM_API_KEY</code> no servidor.</div>
+    <div id="search-status" class="status" role="status" aria-live="polite" hidden></div>
+    <section id="welcome" class="welcome"><div><span class="feature-icon">▧</span><h2>Momentos que ficam</h2><p>Explore a galeria de capturas compartilhadas pelo jogador.</p></div><div><span class="feature-icon">♜</span><h2>Cada conquista conta</h2><p>Veja o progresso, os desbloqueios e os desafios de cada jogo.</p></div><div><span class="feature-icon">◎</span><h2>Direto do perfil</h2><p>Consulte dados públicos, sem precisar entrar com sua conta.</p></div></section>
+    <section id="results" hidden aria-label="Resultado da consulta">
+      <div class="profile-card"><div class="identity"><img id="avatar" width="72" height="72" alt="Avatar do jogador"><div><div class="eyebrow" id="visibility"></div><h2 id="profile-name"></h2><span id="steam-id"></span></div></div><a id="profile-link" class="outline" target="_blank" rel="noopener">Ver na Steam ↗</a></div>
+      <div class="section-heading"><div><h2>Últimos jogos jogados</h2><p>Na ordem da atividade pública da Steam. Até três jogos por perfil.</p></div><span class="tag">ATIVIDADE RECENTE</span></div>
+      <div id="recent-status" class="status" role="status" hidden></div>
+      <div id="recent-games" class="recent-games"></div>
+    </section>
+    <footer><span><b>STEAM ATLAS</b> · Feito para explorar.</span><span>Dados públicos da Steam. Projeto independente, sem vínculo com a Valve.</span></footer>
+  </main>
+</body></html>
