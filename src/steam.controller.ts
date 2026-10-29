@@ -20,6 +20,14 @@ export class SteamController {
   @ApiQuery({ name: 'profile', example: 'https://steamcommunity.com/id/robin' })
   resolve(@Query('profile') profile: string) { return this.steam.profile(profile); }
 
+  @Get('profiles/search')
+  @ApiOperation({ summary: 'Busca nomes públicos na comunidade Steam para escolher um perfil' })
+  @ApiQuery({ name: 'name', example: 'GhostTl' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  search(@Query('name') name: string, @Query('page') page = '1') {
+    return this.steam.searchProfiles(name, positive(page, 100));
+  }
+
   @Get('profiles/:steamId/screenshots')
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'appId', required: false, example: 230410 })

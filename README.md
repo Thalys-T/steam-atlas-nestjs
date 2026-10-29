@@ -38,7 +38,7 @@ Para encerrar um servidor iniciado no terminal, use Ctrl+C. Se a porta estiver o
 
 ## Usar
 
-1. Cole o link do perfil, SteamID64 ou identificador personalizado. O botão de exemplo consulta `https://steamcommunity.com/id/GhostTl/`.
+1. Digite o nome do jogador (por exemplo, `GhostTl` ou `GhostTl鬼`) e escolha um dos perfis encontrados. Nomes podem se repetir: confira o avatar e o identificador. A lista possui paginação de até 100 páginas. Ao digitar um SteamID64 de 17 dígitos, a consulta abre diretamente; links de perfil continuam aceitos. O botão de exemplo pesquisa `GhostTl`.
 2. A consulta mostra até três jogos, preservando a ordem exibida na atividade recente da Steam, sem ordenar por horas jogadas e sem filtrar apenas as últimas duas semanas. Aplicativos que a Steam inclui nessa atividade também aparecem.
 3. Cada bloco traz a miniatura do jogo à esquerda e o progresso e os ícones de conquistas à direita. A faixa abaixo contém exclusivamente as capturas públicas daquele AppID, com navegação independente por jogo.
 4. Sem chave, os ícones são uma prévia (não a lista completa) publicada no perfil; o progresso é o total informado pela Steam. Há um link para consultar as conquistas na Steam.
@@ -63,6 +63,7 @@ O fluxo principal é **navegador → controller → service → Steam → JSON �
 | Método | Rota | Resultado |
 |---|---|---|
 | GET | `/api/health` | Status e indicação de chave configurada (não valida a chave) |
+| GET | `/api/profiles/search?name=GhostTl&page=1` | Busca pública por nome, avatar, URL, total e paginação |
 | GET | `/api/profiles/resolve?profile=robin` | SteamID64, nome, avatar, visibilidade e link |
 | GET | `/api/profiles/:steamId/recent-games` | Até três jogos em ordem de atividade, miniaturas e resumo público de conquistas |
 | GET | `/api/profiles/:steamId/screenshots?page=1&appId=230410` | Capturas por jogo (AppID opcional), página atual, aviso e `hasNext` |
@@ -74,6 +75,7 @@ Erros seguem o formato NestJS `{ "message": "...", "error": "...", "statusCode":
 ## Fontes e limites
 
 - Perfil: XML público da Steam Community (`?xml=1`).
+- Busca por nome: pesquisa pública Steam Community, com sessão anônima criada pelo servidor, sem autenticação do visitante. Aceita espaços e Unicode (2 a 64 caracteres). Os resultados e sua ordem dependem do índice da Steam e podem corresponder a aliases; nomes não são únicos. A busca depende do HTML da comunidade e pode ficar indisponível independentemente da consulta por SteamID64. A resolução direta por identificador personalizado continua disponível na API.
 - Atividade recente: HTML público do perfil (`.recent_game`), incluindo progresso e ícones publicados. O resumo retorna `partial: true`; ausência de resumo retorna totais nulos, não zero. Perfis com menos de três jogos públicos mostram somente os disponíveis. Mudanças no HTML podem exigir atualizar `parseRecentGames`.
 - Capturas: HTML público da página `/screenshots/`, interpretado com Cheerio; esta integração depende da estrutura da página, não é uma API oficial estável de screenshots. Apenas capturas compartilhadas, nunca arquivos locais ou privados. Uma alteração no HTML pode exigir atualizar `parseScreenshots`.
 - Biblioteca: `IPlayerService/GetOwnedGames/v1`.

@@ -90,9 +90,9 @@ export class SteamService {
     return value;
   }
 
-  private async request(url: URL, json = true): Promise<any> {
+  private async request(url: URL, json = true, headers: Record<string, string> = {}, raw = false): Promise<any> {
     try {
-      const options: RequestInit = { signal: AbortSignal.timeout(12000), redirect: 'manual', headers: { 'User-Agent': 'SteamProfileExplorer/1.0', 'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8' } };
+      const options: RequestInit = { signal: AbortSignal.timeout(12000), redirect: 'manual', headers: { 'User-Agent': 'SteamProfileExplorer/1.0', 'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8', ...headers } };
       let response = await fetch(url, options);
       // A comunidade redireciona SteamID64 para o identificador personalizado.
       for (let hop = 0; response.status >= 300 && response.status < 400 && hop < 3; hop++) {
@@ -107,11 +107,40 @@ export class SteamService {
       if (response.status === 429) throw new HttpException('A Steam limitou as consultas. Aguarde um minuto.', 429);
       if ([401, 403].includes(response.status)) throw new HttpException('A Steam recusou o acesso. Confira a chave de API e a privacidade do perfil e dos detalhes de jogos.', 403);
       if (!response.ok) throw new BadGatewayException('Não foi possível consultar a Steam. Tente novamente mais tarde.');
-      return json ? await response.json() : await response.text();
+      return raw ? response : json ? await response.json() : await response.text();
     } catch (error) {
       if (error instanceof HttpException) throw error;
       throw new BadGatewayException('A Steam não respondeu a tempo ou está indisponível. Tente novamente.');
     }
+  }
+
+  searchProfiles(query: string, page: number) {
+    if (typeof query !== 'string' || query.trim().length < 2 || query.trim().length > 64 || /[\u0000-\u001f\u007f]/.test(query)) throw new BadRequestException('Digite um nome com 2 a 64 caracteres.');
+    const text = query.trim();
+    return this.cached(`search:${text}:${page}`, async () => {
+      // Sessão anônima emitida pela própria página pública, sem login do usuário.
+      const landing: Response = await this.request(new URL('https://steamcommunity.com/search/users/'), false, {}, true);
+      const html = await landing.text();
+      const session = html.match(/g_sessionID\s*=\s*"([a-f0-9]+)"/)?.[1];
+      if (!session) throw new BadGatewayException('A busca de nomes da Steam está indisponível. Tente novamente ou use o SteamID64.');
+      const cookie = landing.headers.getSetCookie().map(c => c.split(';')[0]).join('; ');
+      const url = new URL('https://steamcommunity.com/search/SearchCommunityAjax');
+      for (const [key, value] of Object.entries({ text, filter: 'users', sessionid: session, steamid_user: 'false', page: String(page) })) url.searchParams.set(key, value);
+      const result = await this.request(url, true, { Cookie: cookie, 'X-Requested-With': 'XMLHttpRequest' });
+      if (result.success !== 1 || typeof result.html !== 'string' || !Number.isInteger(result.search_result_count) || result.search_result_count < 0) throw new BadGatewayException('A Steam não retornou resultados válidos. Tente novamente ou use o SteamID64.');
+      const $ = load(result.html);
+      const items: { name: string; url: string; avatar: string | null }[] = [];
+      $('.search_row').each((_, el) => {
+        const row = $(el), anchor = row.find('.searchPersonaName');
+        try {
+          const path = profilePath(anchor.attr('href') || '');
+          const url = `https://steamcommunity.com/${path}`;
+          if (!items.some(item => item.url === url)) items.push({ name: anchor.text().trim(), url, avatar: safeImage(row.find('.avatarMedium img').attr('src')) });
+        } catch { /* Ignora links que não sejam perfis válidos da Steam. */ }
+      });
+      if (result.search_result_count > 0 && !items.length) throw new BadGatewayException('Não foi possível interpretar os perfis encontrados na Steam.');
+      return { items, page, total: result.search_result_count, hasNext: page * 20 < result.search_result_count };
+    });
   }
 
   private api(path: string, params: Record<string, string | number>) {

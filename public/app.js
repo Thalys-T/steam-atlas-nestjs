@@ -8,12 +8,12 @@ async function api(path) { const r = await fetch(`/api/${path}`, {signal:AbortSi
 function errorText(e) { return ['TimeoutError','AbortError'].includes(e.name) ? 'A consulta demorou mais que o esperado. Tente novamente.' : e.message; }
 const config = api('health').catch(() => ({steamApiConfigured:false}));
 config.then(c => { $('config-notice').hidden = c.steamApiConfigured; });
-$('search-form').onsubmit = async event => {
-  event.preventDefault(); const current = ++generation;
+async function openProfile(input) {
+  const current = ++generation; $('profile-matches').hidden = true;
   $('results').hidden = true; $('welcome').hidden = true; $('recent-games').replaceChildren();
   message($('recent-status')); message($('search-status'), 'Buscando perfil na Steam…'); $('search-button').disabled = true;
   try {
-    const profile = await api(`profiles/resolve?profile=${encodeURIComponent($('profile-input').value.trim())}`);
+    const profile = await api(`profiles/resolve?profile=${encodeURIComponent(input)}`);
     if (current !== generation) return;
     $('profile-name').textContent = profile.name; $('steam-id').textContent = profile.steamId;
     $('avatar').hidden = !profile.avatar; if (profile.avatar) $('avatar').src = profile.avatar;
@@ -26,7 +26,38 @@ $('search-form').onsubmit = async event => {
   } catch(e) { if (current === generation) { message($('recent-status')); message($('search-status'),errorText(e),true); } }
   finally { if (current === generation) $('search-button').disabled = false; }
 };
-$('example').onclick = () => { $('profile-input').value = 'https://steamcommunity.com/id/GhostTl/'; $('search-form').requestSubmit(); };
+$('search-form').onsubmit = event => {
+  event.preventDefault(); const input = $('profile-input').value.trim();
+  if (/^\d{17}$/.test(input) || /^(https?:\/\/|steamcommunity\.)/i.test(input)) openProfile(input);
+  else searchProfiles(input, 1);
+};
+$('example').onclick = () => { $('profile-input').value = 'GhostTl'; $('search-form').requestSubmit(); };
+async function searchProfiles(name, page) {
+  const current = ++generation;
+  $('results').hidden = true; $('welcome').hidden = true; $('profile-matches').hidden = true;
+  $('search-button').disabled = true; message($('search-status'), 'Procurando perfis pelo nome…');
+  try {
+    const data = await api(`profiles/search?name=${encodeURIComponent(name)}&page=${page}`);
+    if (current !== generation) return;
+    message($('search-status'), data.items.length ? 'Escolha o perfil correto. Nomes na Steam podem se repetir.' : 'Nenhum perfil encontrado. Tente outro nome ou informe o SteamID64.');
+    $('match-list').replaceChildren();
+    for (const profile of data.items) {
+      const row = node('button', '', 'profile-match'); row.type = 'button';
+      if (profile.avatar) row.append(picture(profile.avatar, ''));
+      const text = node('span', '', 'match-info'); text.append(node('strong', profile.name), node('small', profile.url.replace('https://steamcommunity.com/', '')));
+      row.append(text, node('span', 'Abrir →', 'match-action'));
+      row.onclick = () => openProfile(profile.url);
+      $('match-list').append(row);
+    }
+    $('match-count').textContent = `${data.total.toLocaleString('pt-BR')} perfis · página ${page}`;
+    $('match-previous').disabled = page <= 1;
+    $('match-next').disabled = !data.hasNext || page >= 100;
+    $('match-previous').onclick = () => searchProfiles(name, page - 1);
+    $('match-next').onclick = () => searchProfiles(name, page + 1);
+    $('profile-matches').hidden = !data.items.length;
+  } catch (e) { if (current === generation) message($('search-status'), errorText(e), true); }
+  finally { if (current === generation) $('search-button').disabled = false; }
+}
 function renderGame(game,index,id,current,hasKey) {
   const card = node('article','','recent-game'), top = node('div','','recent-game-top'), identity = node('div','','game-identity');
   identity.append(node('span',`0${index+1} / ÚLTIMOS JOGADOS`,'eyebrow'));

@@ -108,3 +108,31 @@ test('cache evita consultas repetidas dentro do prazo', async () => {
   const service = new SteamService(); await service.games(id); await service.games(id);
   assert.equal(calls, 1);
 });
+
+test('busca por nome aceita Unicode, preserva homônimos e pagina resultados', async () => {
+  let calls = 0;
+  global.fetch = async (url, options) => {
+    calls++;
+    if (url.pathname === '/search/users/') return new Response('<script>g_sessionID = "abcdef123456";</script>', { headers: { 'set-cookie': 'sessionid=abcdef123456; Path=/' } });
+    assert.equal(url.searchParams.get('text'), 'Ghost 鬼');
+    assert.equal(url.searchParams.get('page'), '1');
+    assert.match(options.headers.Cookie, /sessionid=/);
+    return new Response(JSON.stringify({success:1,search_result_count:21,html:[id, '76561198119422053'].map(s => `<div class="search_row"><div class="avatarMedium"><img src="https://avatars.steamstatic.com/x.jpg"></div><a class="searchPersonaName" href="https://steamcommunity.com/profiles/${s}">Ghost 鬼</a></div>`).join('')}));
+  };
+  const service = new SteamService(); const data = await service.searchProfiles('Ghost 鬼', 1);
+  assert.equal(data.items.length, 2); assert.equal(data.hasNext, true);
+  assert.equal(data.items[0].name, 'Ghost 鬼');
+  await service.searchProfiles('Ghost 鬼', 1); assert.equal(calls, 2);
+});
+test('busca rejeita entradas inválidas e diferencia resposta vazia de falha', async () => {
+  const service = new SteamService();
+  for (const value of ['', 'a', 'a'.repeat(65), undefined, ['Ghost'], 'ab\ncd']) assert.throws(() => service.searchProfiles(value, 1));
+  global.fetch = async url => url.pathname === '/search/users/' ? new Response('g_sessionID = "abc123";') : new Response(JSON.stringify({success:1,search_result_count:0,html:''}));
+  assert.equal((await service.searchProfiles('Nada', 1)).items.length, 0);
+  global.fetch = async () => new Response('<html>Unexpected page</html>');
+  await assert.rejects(service.searchProfiles('Falha', 1), e => e.getStatus() === 502);
+});
+test('busca ignora links externos e não interpreta falha de parser como resultado vazio', async () => {
+  global.fetch = async url => url.pathname === '/search/users/' ? new Response('g_sessionID = "abc123";') : new Response(JSON.stringify({success:1,search_result_count:1,html:'<div class="search_row"><a class="searchPersonaName" href="https://evil.test/id/foo">Foo</a></div>'}));
+  await assert.rejects(new SteamService().searchProfiles('Foo', 1), e => e.getStatus() === 502);
+});
