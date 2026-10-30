@@ -1,19 +1,27 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101519">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Steam Atlas">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="/icons/icon-192.png">
   <title>Steam Atlas • Explore um perfil</title>
-  <link rel="stylesheet" href="/styles.css"><script src="/app.js" defer></script>
+  <link rel="stylesheet" href="/styles.css"><script src="/app.js" defer></script><script src="/mobile.js" defer></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="/" aria-label="Steam Atlas, início"><span class="brandmark">◈</span> STEAM<span>ATLAS</span></a><span class="topnote">UM OLHAR SOBRE CADA JOGADOR</span><a href="/api/docs" target="_blank" rel="noopener">Explorar API ↗</a></header>
   <main>
+    <div class="mobile-toolbar"><span>Seu universo Steam, no celular.</span><button id="install-app" type="button" class="outline">Instalar app ↗</button></div>
+    <div id="offline-notice" class="notice" role="status" hidden>Você está sem conexão. A interface está disponível, mas buscar perfis, conquistas e capturas requer internet.</div>
     <section class="hero">
       <div class="eyebrow"><span class="dot"></span> PERFIS · CAPTURAS · CONQUISTAS</div>
       <h1>Cada perfil,<br>uma história para <em>explorar.</em></h1>
-      <p>Os três últimos jogos, suas conquistas e capturas de tela.<br>Tudo organizado por jogo, em uma única consulta.</p>
-      <form id="search-form" class="searchbox"><label class="sr-only" for="profile-input">Nome do jogador ou SteamID64</label><span aria-hidden="true">⌕</span><input id="profile-input" type="text" maxlength="250" placeholder="Digite um nome ou SteamID64. Ex.: GhostTl" required autocomplete="off"><button id="search-button" type="submit">Explorar perfil <span aria-hidden="true">→</span></button></form>
+      <p>Os três últimos jogos, suas conquistas e capturas de tela.<br> Tudo organizado por jogo, em uma única consulta.</p>
+      <form id="search-form" class="searchbox"><label class="sr-only" for="profile-input">Nome do jogador ou SteamID64</label><span aria-hidden="true">⌕</span><input id="profile-input" type="text" maxlength="250" placeholder="Nome ou SteamID64. Ex.: GhostTl" required autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="search"><button id="search-button" type="submit">Explorar perfil <span aria-hidden="true">→</span></button></form>
       <div class="searchhint">Busque pelo nome ou SteamID64. Links de perfil também funcionam. <button id="example" type="button">Experimentar com GhostTl ↗</button></div>
     </section>
     <div id="config-notice" class="notice" hidden>Exibindo o resumo público das conquistas. Para carregar a lista completa e as datas de desbloqueio, configure <code>STEAM_API_KEY</code> no servidor.</div>
@@ -28,4 +36,5 @@
     </section>
     <footer><span><b>STEAM ATLAS</b> · Feito para explorar.</span><span>Dados públicos da Steam. Projeto independente, sem vínculo com a Valve.</span></footer>
   </main>
+  <dialog id="install-dialog" aria-labelledby="install-title"><div class="game-section-title"><h2 id="install-title">Steam Atlas no celular</h2><button id="close-install" class="outline" type="button" aria-label="Fechar instruções">✕</button></div><p>Adicione à tela inicial para abrir como um aplicativo.</p><h3>Android</h3><p>No Chrome, abra o menu ⋮ e escolha <strong>Instalar aplicativo</strong> ou <strong>Adicionar à tela inicial</strong>.</p><h3>iPhone</h3><p>No Safari, toque em <strong>Compartilhar</strong> e depois em <strong>Adicionar à Tela de Início</strong>. Se aparecer, ative <strong>Abrir como App da Web</strong> e toque em Adicionar.</p><p id="install-note" class="notice"></p><p class="subtle">As consultas à Steam precisam de internet.</p></dialog>
 </body></html>

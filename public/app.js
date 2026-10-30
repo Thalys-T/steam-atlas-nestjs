@@ -4,10 +4,12 @@ function node(tag, text = '', cls = '') { const e = document.createElement(tag);
 function message(el, text = '', error = false) { el.textContent = text; el.hidden = !text; el.classList.toggle('error', error); }
 function link(text, url, cls = '') { const a = node('a', text, cls); a.href = url; a.target = '_blank'; a.rel = 'noopener'; return a; }
 function picture(src, alt) { const img = node('img'); img.src = src; img.alt = alt; img.loading = 'lazy'; img.onerror = () => img.replaceWith(node('span', alt || 'Imagem indisponível', 'image-fallback')); return img; }
-async function api(path) { const r = await fetch(`/api/${path}`, {signal:AbortSignal.timeout(30000)}); const data = await r.json(); if (!r.ok) throw new Error(data.message || 'Falha na consulta.'); return data; }
-function errorText(e) { return ['TimeoutError','AbortError'].includes(e.name) ? 'A consulta demorou mais que o esperado. Tente novamente.' : e.message; }
-const config = api('health').catch(() => ({steamApiConfigured:false}));
-config.then(c => { $('config-notice').hidden = c.steamApiConfigured; });
+async function api(path) { if (!navigator.onLine) throw new Error('Sem conexão. Conecte-se à internet para consultar a Steam.'); const r = await fetch(`/api/${path}`, {signal:AbortSignal.timeout(30000)}); const data = await r.json(); if (!r.ok) throw new Error(data.message || 'Falha na consulta.'); return data; }
+function errorText(e) { return ['TimeoutError','AbortError'].includes(e.name) ? 'A consulta demorou mais que o esperado. Tente novamente.' : e instanceof TypeError ? 'Não foi possível conectar ao servidor. Verifique a conexão e tente novamente.' : e.message; }
+let config;
+function loadConfig() { config = api('health').catch(() => ({steamApiConfigured:null})); config.then(c => { $('config-notice').hidden = c.steamApiConfigured !== false; }); }
+loadConfig();
+window.addEventListener('online', loadConfig);
 async function openProfile(input) {
   const current = ++generation; $('profile-matches').hidden = true;
   $('results').hidden = true; $('welcome').hidden = true; $('recent-games').replaceChildren();

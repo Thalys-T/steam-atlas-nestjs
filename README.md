@@ -46,6 +46,19 @@ Para encerrar um servidor iniciado no terminal, use Ctrl+C. Se a porta estiver o
 
 Qualquer perfil pode ser consultado pelo identificador; só os dados publicados pela Steam ficam disponíveis. Perfil público não implica detalhes de jogos públicos. Uma biblioteca vazia, dados privados e falha da Steam são apresentados como situações diferentes quando o serviço permite distingui-las.
 
+## Android e iPhone
+
+A versão mobile é uma PWA: o mesmo site pode ser adicionado à tela inicial, com ícone próprio e abertura em uma janela de aplicativo. Mantém a API NestJS e a busca por nome ou SteamID64. O layout adapta os controles ao toque e permite deslizar as capturas horizontalmente.
+
+Para instalar em um celular, publique o servidor NestJS em um endereço **HTTPS** e abra esse endereço no aparelho:
+
+- **Android:** no Chrome, toque em **Instalar app** ou use o menu ⋮ → **Instalar aplicativo / Adicionar à tela inicial**.
+- **iPhone:** no Safari, toque em **Compartilhar → Adicionar à Tela de Início**. Se disponível, ative **Abrir como App da Web**.
+
+O botão também mostra essas instruções quando o navegador não oferece a instalação automática. Esta entrega inclui os arquivos da PWA, mas não a hospedagem HTTPS nem pacotes nativos APK/IPA ou publicação nas lojas. O endereço `localhost` aberto no celular se refere ao próprio celular, não ao computador. O GitHub armazena o código; GitHub Pages não executa o servidor NestJS.
+
+O service worker guarda apenas os arquivos da interface após uma primeira visita online bem-sucedida. Consultas, conquistas, avatares e capturas da Steam continuam dependendo de internet; as respostas da API não são armazenadas por ele. Sem conexão, a interface exibe um aviso. Em produção, configure `HOST` conforme a plataforma e mantenha a chave Steam nas variáveis do servidor.
+
 ## Como o NestJS participa
 
 O NestJS é o framework do servidor, escrito em TypeScript. Ele recebe as consultas do navegador, organiza o código em módulos, controllers e services e devolve os resultados em JSON. A interface em HTML, CSS e JavaScript também é servida pelo mesmo servidor.
@@ -99,6 +112,10 @@ Os testes usam respostas controladas para verificar ordem/limite dos jogos recen
 - `src/steam.controller.ts`: rotas e validação de parâmetros.
 - `src/steam.service.ts`: integrações com a Steam, parser, cache e normalização.
 - `public/`: interface HTML/CSS/JavaScript, sem etapa de compilação própria.
+- `public/mobile.js`, `manifest.webmanifest` e `sw.js`: instalação, identidade e cache da interface mobile. Ao alterar os arquivos da interface em uma publicação, atualize a versão `CACHE_NAME` do service worker.
+- `scripts/generate-icons.py`: recria os ícones da PWA com Python 3, sem bibliotecas externas.
 - `test/`: testes executados pelo runner nativo do Node.js.
+
+Os testes mobile verificam manifesto, dimensões dos ícones, disponibilidade dos arquivos, fallback offline da interface e exclusão das consultas da API do cache. A validação visual em larguras de celular no navegador não substitui testes de instalação em aparelhos Android e iPhone reais.
 
 Para continuar: comece pelo serviço para novas fontes de dados, adicione a rota no controller e consuma em `public/app.js`. Preserve o tratamento de privacidade e mantenha a chave fora da interface. Em uma publicação futura, use HTTPS, configuração segura dos segredos e ajuste de proxy/limitação conforme a infraestrutura.
