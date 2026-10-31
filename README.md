@@ -1,5 +1,7 @@
 # Steam Atlas — NestJS
 
+Aplicação publicada: [steam-atlas-nestjs.vercel.app](https://steam-atlas-nestjs.vercel.app/).
+
 API REST em NestJS + TypeScript com interface responsiva em português. Mostra o jogo com mais horas acumuladas e dois jogos recentes distintos, com miniatura à esquerda, conquistas à direita e capturas do próprio jogo abaixo. Ao lado do perfil, compara as conquistas desbloqueadas em toda a biblioteca pública e apresenta as dez mais raras. Não exige banco de dados nem login do visitante.
 
 ## Executar
@@ -74,7 +76,7 @@ Para instalar em um celular, publique o servidor NestJS em um endereço **HTTPS*
 - **Android:** no Chrome, toque em **Instalar app** ou use o menu ⋮ → **Instalar aplicativo / Adicionar à tela inicial**.
 - **iPhone:** no Safari, toque em **Compartilhar → Adicionar à Tela de Início**. Se disponível, ative **Abrir como App da Web**.
 
-O botão também mostra essas instruções quando o navegador não oferece a instalação automática. Esta entrega inclui os arquivos da PWA, mas não a hospedagem HTTPS nem pacotes nativos APK/IPA ou publicação nas lojas. O endereço `localhost` aberto no celular se refere ao próprio celular, não ao computador. O GitHub armazena o código; GitHub Pages não executa o servidor NestJS.
+O botão também mostra essas instruções quando o navegador não oferece a instalação automática. A aplicação publicada na Vercel usa HTTPS. A PWA não inclui pacotes nativos APK/IPA ou publicação nas lojas. O endereço `localhost` aberto no celular se refere ao próprio celular, não ao computador. O GitHub armazena o código; GitHub Pages não executa o servidor NestJS.
 
 O service worker guarda apenas os arquivos da interface após uma primeira visita online bem-sucedida. Consultas, conquistas, avatares e capturas da Steam continuam dependendo de internet; as respostas da API não são armazenadas por ele. Sem conexão, a interface exibe um aviso. Em produção, configure `HOST` conforme a plataforma e mantenha a chave Steam nas variáveis do servidor.
 
