@@ -39,6 +39,19 @@ export class SteamController {
   @ApiOperation({ summary: 'Os três últimos jogos exibidos na atividade pública, com miniaturas e resumo de conquistas' })
   recentGames(@Param('steamId') id: string) { return this.steam.recentGames(id); }
 
+  @Get('profiles/:steamId/featured-games')
+  @ApiOperation({ summary: 'Jogo com mais minutos acumulados e dois recentes distintos, com resumo de conquistas' })
+  featuredGames(@Param('steamId') id: string) { return this.steam.featuredGames(id); }
+
+  @Get('profiles/:steamId/rarest-achievements')
+  @ApiOperation({ summary: 'Lote das conquistas desbloqueadas mais raras; percorra todas as páginas e combine o top 10' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'snapshot', required: false, description: 'Identificador da biblioteca retornado na primeira página' })
+  rarest(@Param('steamId') id: string, @Query('page') page = '1', @Query('snapshot') snapshot?: string) {
+    if (snapshot !== undefined && (typeof snapshot !== 'string' || !/^[a-f0-9]{64}$/.test(snapshot))) throw new BadRequestException('Identificador da biblioteca inválido.');
+    return this.steam.rareAchievements(id, positive(page, 10000), snapshot);
+  }
+
   @Get('profiles/:steamId/games')
   games(@Param('steamId') id: string) { return this.steam.games(id); }
 

@@ -4,13 +4,15 @@ function node(tag, text = '', cls = '') { const e = document.createElement(tag);
 function message(el, text = '', error = false) { el.textContent = text; el.hidden = !text; el.classList.toggle('error', error); }
 function link(text, url, cls = '') { const a = node('a', text, cls); a.href = url; a.target = '_blank'; a.rel = 'noopener'; return a; }
 function picture(src, alt) { const img = node('img'); img.src = src; img.alt = alt; img.loading = 'lazy'; img.onerror = () => img.replaceWith(node('span', alt || 'Imagem indisponível', 'image-fallback')); return img; }
-async function api(path) { if (!navigator.onLine) throw new Error('Sem conexão. Conecte-se à internet para consultar a Steam.'); const r = await fetch(`/api/${path}`, {signal:AbortSignal.timeout(30000)}); const data = await r.json(); if (!r.ok) throw new Error(data.message || 'Falha na consulta.'); return data; }
+async function api(path, timeout = 30000, signal) { if (!navigator.onLine) throw new Error('Sem conexão. Conecte-se à internet para consultar a Steam.'); const r = await fetch(`/api/${path}`, {signal:signal ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : AbortSignal.timeout(timeout)}); const data = await r.json(); if (!r.ok) throw new Error(data.message || 'Falha na consulta.'); return data; }
 function errorText(e) { return ['TimeoutError','AbortError'].includes(e.name) ? 'A consulta demorou mais que o esperado. Tente novamente.' : e instanceof TypeError ? 'Não foi possível conectar ao servidor. Verifique a conexão e tente novamente.' : e.message; }
 let config;
 function loadConfig() { config = api('health').catch(() => ({steamApiConfigured:null})); config.then(c => { $('config-notice').hidden = c.steamApiConfigured !== false; }); }
 loadConfig();
 window.addEventListener('online', loadConfig);
+let rareRequest;
 async function openProfile(input) {
+  rareRequest?.abort();
   const current = ++generation; $('profile-matches').hidden = true;
   $('results').hidden = true; $('welcome').hidden = true; $('recent-games').replaceChildren();
   message($('recent-status')); message($('search-status'), 'Buscando perfil na Steam…'); $('search-button').disabled = true;
@@ -20,8 +22,9 @@ async function openProfile(input) {
     $('profile-name').textContent = profile.name; $('steam-id').textContent = profile.steamId;
     $('avatar').hidden = !profile.avatar; if (profile.avatar) $('avatar').src = profile.avatar;
     $('profile-link').href = profile.url; $('visibility').textContent = profile.visibility === 'public' ? 'PERFIL PÚBLICO' : 'PERFIL PRIVADO';
-    $('results').hidden = false; message($('search-status')); message($('recent-status'), 'Buscando os últimos jogos…');
-    const data = await api(`profiles/${profile.steamId}/recent-games`); const settings = await config;
+    $('results').hidden = false; message($('search-status')); message($('recent-status'), 'Buscando o jogo mais jogado e os recentes…');
+    loadRareAchievements(profile.steamId, current);
+    const data = await api(`profiles/${profile.steamId}/featured-games`); const settings = await config;
     if (current !== generation) return;
     message($('recent-status'), data.notice || '');
     data.items.forEach((game, index) => renderGame(game,index,profile.steamId,current,settings.steamApiConfigured));
@@ -35,6 +38,7 @@ $('search-form').onsubmit = event => {
 };
 $('example').onclick = () => { $('profile-input').value = 'GhostTl'; $('search-form').requestSubmit(); };
 async function searchProfiles(name, page) {
+  rareRequest?.abort();
   const current = ++generation;
   $('results').hidden = true; $('welcome').hidden = true; $('profile-matches').hidden = true;
   $('search-button').disabled = true; message($('search-status'), 'Procurando perfis pelo nome…');
@@ -62,10 +66,11 @@ async function searchProfiles(name, page) {
 }
 function renderGame(game,index,id,current,hasKey) {
   const card = node('article','','recent-game'), top = node('div','','recent-game-top'), identity = node('div','','game-identity');
-  identity.append(node('span',`0${index+1} / ÚLTIMOS JOGADOS`,'eyebrow'));
+  identity.append(node('span',game.kind === 'most-played' ? '01 / MAIS JOGADO' : `0${index+1} / RECENTE`,'eyebrow'));
   const cover = link('',`https://steamcommunity.com/app/${game.appId}`,'game-cover');
   cover.append(game.image ? picture(game.image,game.name) : node('span','◇','image-fallback'));
   identity.append(cover,node('h3',game.name));
+  if (game.hours !== null && game.hours !== undefined) identity.append(node('p', `${game.hours.toLocaleString('pt-BR')} h no total`, 'playtime'));
   const achievements = node('div','','game-achievements'), screenshots = node('section','','game-screenshots');
   screenshots.setAttribute('aria-label',`Capturas de ${game.name}`);
   top.append(identity,achievements); card.append(top,screenshots); $('recent-games').append(card);
@@ -77,6 +82,65 @@ function renderGame(game,index,id,current,hasKey) {
     }).catch(e => { if(current === generation) loading.textContent = `${errorText(e)} O resumo público foi preservado.`; });
   }
   renderScreenshots(screenshots,game,id,current);
+}
+function loadRareAchievements(id, current) {
+  const controller = new AbortController(); rareRequest = controller;
+  let page = 1, snapshot = '', top = [], running = false, paused = false, processed = 0, total = 0;
+  const failures = new Map();
+  const status = $('rare-status'), button = $('rare-control'), list = $('rare-list');
+  list.replaceChildren(); $('rare-failures').replaceChildren(); button.hidden = false;
+  $('rare-title').textContent = '10 conquistas mais raras';
+  function draw() {
+    list.replaceChildren();
+    for (const a of top) {
+      const tile = link('', `https://steamcommunity.com/profiles/${id}/achievements/${a.appId}`, 'rare-tile');
+      const percent = a.globalPercentage > 0 && a.globalPercentage < 0.0001 ? '<0,0001' : a.globalPercentage.toLocaleString('pt-BR', {maximumFractionDigits:4});
+      tile.title = `${a.name} — ${a.gameName}\n${a.description}\n${percent}% dos jogadores desbloquearam`;
+      tile.append(a.icon ? picture(a.icon, '') : node('span','★','badge'), node('strong',`${percent}%`), node('span',a.name), node('small',a.gameName));
+      list.append(tile);
+    }
+    const details = $('rare-failures'); details.replaceChildren();
+    if (failures.size) {
+      details.append(node('summary',`${failures.size} jogo(s) com dados incompletos`));
+      const games = node('ul');
+      for (const failure of failures.values()) games.append(node('li',`${failure.name}: ${failure.message}`));
+      details.append(games);
+    }
+  }
+  async function run() {
+    if (running || current !== generation) return;
+    running = true; paused = false; button.textContent = 'Pausar análise';
+    try {
+      while (page && !paused && current === generation) {
+        message(status, `Analisando a biblioteca: ${processed}${total ? ` de ${total}` : ''} jogos. O ranking ainda é provisório.`);
+        const data = await api(`profiles/${id}/rarest-achievements?page=${page}${snapshot ? `&snapshot=${snapshot}` : ''}`, 60000, controller.signal);
+        if (current !== generation) return;
+        snapshot = data.snapshot; processed = data.processed; total = data.totalGames;
+        top = [...new Map([...top, ...data.items].map(a => [`${a.appId}:${a.id}`, a])).values()]
+          .sort((a,b) => a.globalPercentage - b.globalPercentage || a.appId - b.appId || a.id.localeCompare(b.id)).slice(0,10);
+        for (const failure of data.failedGames) failures.set(failure.appId, failure);
+        page = data.nextPage; draw();
+        if (page) message(status, `Analisando a biblioteca: ${processed} de ${total} jogos. O ranking ainda é provisório.`);
+        if (page && !paused) await new Promise(resolve => setTimeout(resolve, 1600));
+      }
+      if (current !== generation) return;
+      button.hidden = !page; button.textContent = 'Continuar análise';
+      if (page) message(status, `Análise pausada: ${processed} de ${total} jogos. Ranking provisório.`);
+      else {
+        $('rare-title').textContent = failures.size ? 'Conquistas raras · resultado parcial' : '10 conquistas mais raras';
+        message(status, failures.size ? `Análise encerrada em ${total} jogos, com dados incompletos. O ranking considera somente as conquistas verificadas.` : total === 0 ? 'A biblioteca pública está vazia.' : top.length ? `${total} jogos verificados. ${top.length} conquista(s) mais rara(s) da biblioteca pública.` : 'Nenhuma conquista desbloqueada encontrada na biblioteca pública.');
+      }
+    } catch(e) {
+      if (current === generation && !controller.signal.aborted) {
+        $('rare-title').textContent = 'Conquistas raras · análise incompleta';
+        message(status, `${errorText(e)}${top.length ? ' O ranking exibido é provisório.' : ''}`, true);
+        button.textContent = 'Reiniciar análise';
+        button.onclick = () => loadRareAchievements(id, current);
+      }
+    } finally { running = false; }
+  }
+  button.onclick = () => { if (running) { paused = true; button.textContent = 'Pausando…'; } else run(); };
+  run();
 }
 function renderAchievements(container,data,id,appId) {
   container.replaceChildren(); const url = `https://steamcommunity.com/profiles/${id}/achievements/${appId}`;

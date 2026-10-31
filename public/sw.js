@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'steam-atlas-shell-';
-const CACHE_NAME = `${CACHE_PREFIX}v1`;
+const CACHE_NAME = `${CACHE_PREFIX}v2`;
 const SHELL = ['/', '/index.html', '/styles.css', '/app.js', '/mobile.js', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable.png', '/icons/apple-touch-icon.png'];
 
 self.addEventListener('install', event => {

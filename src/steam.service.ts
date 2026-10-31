@@ -1,5 +1,13 @@
 import { BadGatewayException, BadRequestException, HttpException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { load } from 'cheerio';
+import { createHash } from 'node:crypto';
+
+export interface LibraryGame { appId: number; name: string; hours: number; minutes: number; image: string; }
+export interface RareAchievement { id: string; appId: number; gameName: string; name: string; icon: string | null; description: string; globalPercentage: number; unlockedAt: string | null; }
+export function rarest(items: RareAchievement[]) {
+  return [...new Map(items.map(item => [`${item.appId}:${item.id}`, item])).values()]
+    .sort((a, b) => a.globalPercentage - b.globalPercentage || a.appId - b.appId || a.id.localeCompare(b.id)).slice(0, 10);
+}
 
 export function steamId(id: string) {
   if (!/^7656119\d{10}$/.test(id || '')) throw new BadRequestException('SteamID64 inválido.');
@@ -80,14 +88,19 @@ export function parseRecentGames(html: string) {
 @Injectable()
 export class SteamService {
   private readonly cache = new Map<string, { expires: number; value: unknown }>();
+  private readonly pending = new Map<string, Promise<unknown>>();
 
   private async cached<T>(key: string, run: () => Promise<T>): Promise<T> {
     const entry = this.cache.get(key);
     if (entry && entry.expires > Date.now()) return entry.value as T;
-    const value = await run();
-    if (this.cache.size >= 300) this.cache.delete(this.cache.keys().next().value!);
-    this.cache.set(key, { expires: Date.now() + 120000, value });
-    return value;
+    if (this.pending.has(key)) return this.pending.get(key) as Promise<T>;
+    const promise = run().then(value => {
+      if (this.cache.size >= 300) this.cache.delete(this.cache.keys().next().value!);
+      this.cache.set(key, { expires: Date.now() + 120000, value });
+      return value;
+    }).finally(() => this.pending.delete(key));
+    this.pending.set(key, promise);
+    return promise;
   }
 
   private async request(url: URL, json = true, headers: Record<string, string> = {}, raw = false): Promise<any> {
@@ -196,8 +209,100 @@ export class SteamService {
     return this.cached(`games:${id}`, async () => {
       const data = await this.api('IPlayerService/GetOwnedGames/v1', { steamid: id, include_appinfo: 1, include_played_free_games: 1 });
       if (!data.response || typeof data.response.game_count !== 'number') throw new HttpException('A biblioteca não está pública. Verifique a privacidade dos detalhes de jogos na Steam.', 403);
-      return { items: (data.response.games || []).map((g: any) => ({ appId: g.appid, name: g.name || `Jogo ${g.appid}`, hours: Math.round((g.playtime_forever || 0) / 60 * 10) / 10 })).sort((a: any, b: any) => a.name.localeCompare(b.name)), total: data.response.game_count };
+      if (data.response.game_count !== (data.response.games || []).length) throw new BadGatewayException('A Steam retornou uma biblioteca incompleta. Tente novamente.');
+      const items: LibraryGame[] = (data.response.games || []).map((g: any) => ({
+        appId: g.appid, name: g.name || `Jogo ${g.appid}`,
+        minutes: g.playtime_forever || 0, hours: Math.round((g.playtime_forever || 0) / 60 * 10) / 10,
+        image: `https://shared.steamstatic.com/store_item_assets/steam/apps/${g.appid}/header.jpg`,
+      })).sort((a: LibraryGame, b: LibraryGame) => a.name.localeCompare(b.name));
+      return { items, total: data.response.game_count };
     });
+  }
+
+  async featuredGames(id: string) {
+    steamId(id);
+    const [library, recent] = await Promise.allSettled([this.games(id), this.recentGames(id)]);
+    const notices: string[] = [];
+    const recentItems = recent.status === 'fulfilled' ? recent.value.items : [];
+    if (recent.status === 'rejected') notices.push('A atividade recente não pôde ser consultada.');
+    else if (recent.value.notice) notices.push(recent.value.notice);
+    const mostPlayed = library.status === 'fulfilled' ? [...library.value.items]
+      .filter(game => game.minutes > 0).sort((a, b) => b.minutes - a.minutes || a.appId - b.appId)[0] : undefined;
+    if (library.status === 'rejected') notices.push(`Não foi possível identificar o jogo com mais horas. ${library.reason instanceof HttpException ? library.reason.message : 'Tente novamente.'}`);
+    else if (!mostPlayed) notices.push('A biblioteca não apresenta um jogo com tempo registrado.');
+    const empty = { items: [], unlocked: null, total: null, percentage: null, partial: true };
+    const items: any[] = [];
+    if (mostPlayed) {
+      const preview = recentItems.find(game => game.appId === mostPlayed.appId);
+      items.push({ ...mostPlayed, image: preview?.image || mostPlayed.image, kind: 'most-played', achievements: preview?.achievements || empty });
+    }
+    for (const game of recentItems.filter(game => game.appId !== mostPlayed?.appId).slice(0, 2)) {
+      const owned = library.status === 'fulfilled' ? library.value.items.find(item => item.appId === game.appId) : undefined;
+      items.push({ ...game, kind: 'recent', hours: owned?.hours ?? null });
+    }
+    return { items, notice: notices.join(' ') || null, mostPlayedAvailable: !!mostPlayed };
+  }
+
+  private schema(appId: number): Promise<any> {
+    return this.cached(`schema:${appId}`, async () => {
+      const data = await this.api('ISteamUserStats/GetSchemaForGame/v2', { appid: appId, l: 'brazilian' });
+      if (!data?.game || typeof data.game !== 'object') throw new BadGatewayException('A Steam não retornou a lista de conquistas deste jogo.');
+      return data;
+    });
+  }
+
+  private globalAchievements(appId: number): Promise<Map<string, number>> {
+    return this.cached(`global:${appId}`, async () => {
+      const data = await this.request(new URL(`https://api.steampowered.com/ISteamUserStats/GetGlobalAchievementPercentagesForApp/v2/?gameid=${appId}`));
+      if (!Array.isArray(data?.achievementpercentages?.achievements)) throw new BadGatewayException('Percentuais globais indisponíveis.');
+      const percentages = new Map<string, number>();
+      for (const item of data.achievementpercentages.achievements) {
+        const value = typeof item.percent === 'number' || (typeof item.percent === 'string' && item.percent.trim()) ? Number(item.percent) : NaN;
+        if (typeof item.name === 'string' && Number.isFinite(value) && value >= 0 && value <= 100) percentages.set(item.name, value);
+      }
+      return percentages;
+    });
+  }
+
+  // Lotes independentes funcionam também em múltiplas instâncias serverless.
+  async rareAchievements(id: string, page: number, snapshot?: string) {
+    steamId(id);
+    if (!Number.isInteger(page) || page < 1 || page > 10000) throw new BadRequestException('Página inválida.');
+    const library = await this.games(id);
+    const games = [...library.items].sort((a, b) => a.appId - b.appId);
+    const token = createHash('sha256').update(`${id}:${games.map(game => game.appId).join(',')}`).digest('hex');
+    if ((snapshot && snapshot !== token) || (page > 1 && !snapshot)) throw new HttpException('A biblioteca mudou durante a consulta. Reinicie a análise.', 409);
+    const batchSize = 4, offset = (page - 1) * batchSize;
+    if (page > 1 && offset >= games.length) throw new BadRequestException('Página fora da biblioteca.');
+    const batch = games.slice(offset, offset + batchSize);
+    const results = await Promise.all(batch.map(async game => {
+      try {
+        const schema = await this.schema(game.appId);
+        const definitions = schema.game.availableGameStats?.achievements;
+        if (definitions !== undefined && !Array.isArray(definitions)) throw new BadGatewayException('Lista de conquistas inválida.');
+        // Uma resposta válida sem conquistas não é uma falha de consulta.
+        if (!definitions?.length) {
+          if (definitions === undefined && !schema.game.gameName) throw new BadGatewayException('A Steam não informou se este jogo possui conquistas.');
+          return { items: [] as RareAchievement[], failed: null };
+        }
+        const [player, percentages] = await Promise.all([this.achievements(id, game.appId), this.globalAchievements(game.appId)]);
+        const unlocked = player.items.filter((a: any) => a.unlocked);
+        const missing = unlocked.some((a: any) => !percentages.has(a.id)) || definitions.some((a: any) => !player.items.some((p: any) => p.id === a.name));
+        const items: RareAchievement[] = unlocked.filter((a: any) => percentages.has(a.id)).map((a: any) => ({
+          id: a.id, appId: game.appId, gameName: game.name, name: a.name, icon: a.icon,
+          description: a.description, unlockedAt: a.unlockedAt, globalPercentage: percentages.get(a.id)!,
+        }));
+        return { items, failed: missing ? { appId: game.appId, name: game.name, message: 'Algumas conquistas não têm estado pessoal ou percentual global disponível.' } : null };
+      } catch (error) {
+        return { items: [] as RareAchievement[], failed: { appId: game.appId, name: game.name, message: error instanceof HttpException ? error.message : 'Não foi possível consultar este jogo.' } };
+      }
+    }));
+    return { items: rarest(results.flatMap(result => result.items)), snapshot: token, page,
+      processed: Math.min(offset + batch.length, games.length), totalGames: games.length,
+      nextPage: offset + batch.length < games.length ? page + 1 : null,
+      failedGames: results.flatMap(result => result.failed ? [result.failed] : []),
+      scope: 'owned-public-games',
+    };
   }
 
   achievements(id: string, appId: number) {
@@ -208,7 +313,7 @@ export class SteamService {
       if (!stats?.success) throw new HttpException('Conquistas indisponíveis: o jogo pode não oferecer conquistas, não ter sido jogado ou os dados podem estar privados.', 422);
       let schema: any;
       let warning: string | null = null;
-      try { schema = await this.api('ISteamUserStats/GetSchemaForGame/v2', { appid: appId, l: 'brazilian' }); }
+      try { schema = await this.schema(appId); }
       catch { warning = 'O progresso foi carregado, mas os ícones e descrições completos estão indisponíveis.'; }
       const definitions = new Map<string, any>((schema?.game?.availableGameStats?.achievements || []).map((a: any) => [a.name, a]));
       const items = (stats.achievements || []).map((a: any) => {

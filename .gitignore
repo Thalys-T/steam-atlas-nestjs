@@ -1,4 +1,5 @@
 node_modules/
+.vercel/
 dist/
 .env
 .env.*
@@ -7,3 +8,4 @@ dist/
 steam-sample.html
 profile-sample.html
 preview*.png
+preview*.txt

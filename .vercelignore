@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+preview*.png
+preview*.txt
+*.log
+node_modules
+dist
+test
