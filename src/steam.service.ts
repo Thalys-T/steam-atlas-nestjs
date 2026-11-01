@@ -34,7 +34,9 @@ export function safeImage(value: string | undefined): string | null {
   try {
     const url = new URL(value);
     const domains = ['steamusercontent.com', 'steamstatic.com', 'steamcommunity.com'];
-    return url.protocol === 'https:' && domains.some(d => url.hostname === d || url.hostname.endsWith(`.${d}`)) ? url.href : null;
+    const trusted = domains.some(d => url.hostname === d || url.hostname.endsWith(`.${d}`))
+      || url.hostname === 'steamcdn-a.akamaihd.net';
+    return url.protocol === 'https:' && trusted && !url.username && !url.password && !url.port ? url.href : null;
   } catch { return null; }
 }
 export function parseScreenshots(html: string, page: number) {

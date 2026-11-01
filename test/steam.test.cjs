@@ -61,6 +61,9 @@ test('valida páginas, AppID e endereços das imagens', () => {
   assert.equal(positive('2'), 2);
   assert.equal(safeImage('javascript:alert(1)'), null);
   assert.equal(safeImage('https://steamusercontent.com.evil.test/x'), null);
+  const achievementIcon = 'https://steamcdn-a.akamaihd.net/steamcommunity/public/images/apps/730/icon.jpg';
+  assert.equal(safeImage(achievementIcon), achievementIcon);
+  for (const value of ['https://other.akamaihd.net/icon.jpg', 'https://steamcdn-a.akamaihd.net.evil.test/icon.jpg', 'http://steamcdn-a.akamaihd.net/icon.jpg', 'https://user@steamcdn-a.akamaihd.net/icon.jpg']) assert.equal(safeImage(value), null);
 });
 test('extrai capturas sem executar scripts e encontra próxima página', () => {
   const html = `<div id="BG_bottom_sharedfiles"><a class="profile_media_item" data-publishedfileid="123" data-appid="620"><div class="imgWallItem" style="background-image:url('https://images.steamusercontent.com/ugc/abc/');"></div></a><div class="pagingPageLinks"><a href="?p=2">2</a></div></div>`;
